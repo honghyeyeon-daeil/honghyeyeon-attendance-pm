@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>오후 출석 QR</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1a6e;
+    --bg2: #13135a;
+    --card: #22227a;
+    --card2: #2a2a8a;
+    --border: #3a3a9a;
+    --border2: #4a4aaa;
+    --accent: #f5c842;
+    --accent2: #e0b030;
+    --text1: #ffffff;
+    --text2: #b0b8e8;
+    --text3: #7080c8;
+    --danger: #ff6b6b;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    background: linear-gradient(145deg, #1a1a6e 0%, #13135a 50%, #1e1070 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    color: var(--text1);
+  }
+
+  /* ── QR 화면 ── */
+  #qr-screen { width: 100%; max-width: 480px; }
+  #main-card {
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(12px);
+    border-radius: 28px;
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 32px 36px 28px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  }
+  #main-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  #top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 28px;
+  }
+  #school-info { text-align: left; }
+  #school-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.3px;
+  }
+  #class-name {
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--accent);
+    margin-top: 5px;
+  }
+
+  #time-area { text-align: right; }
+  #clock {
+    font-family: var(--mono);
+    font-size: 42px;
+    font-weight: 500;
+    color: #fff;
+    letter-spacing: 2px;
+    line-height: 1;
+  }
+  #date-str {
+    font-size: 15px;
+    color: #fff;
+    margin-top: 8px;
+    font-weight: 400;
+    opacity: 0.9;
+  }
+
+  #qr-wrap {
+    display: inline-block;
+    padding: 14px;
+    border-radius: 16px;
+    background: #fff;
+    margin-bottom: 20px;
+    border: none;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+
+  #status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  #dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.4s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  #status-text { font-size: 13px; color: var(--text2); letter-spacing: 0.3px; }
+
+  #timer-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 12px;
+    padding: 12px 16px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  #timer-label { font-size: 12px; color: var(--text3); white-space: nowrap; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+  #timer-bar-wrap {
+    flex: 1; height: 4px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px; overflow: hidden;
+  }
+  #timer-bar {
+    height: 100%; border-radius: 2px;
+    background: var(--accent);
+    transition: width 1s linear, background 0.3s;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  #timer-count {
+    font-family: var(--mono);
+    font-size: 14px; font-weight: 500;
+    color: #fff; min-width: 26px; text-align: right;
+  }
+  #timer-unit { font-size: 12px; color: var(--text3); }
+
+  #controls { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .ctrl-btn {
+    font-size: 12px; font-family: var(--sans);
+    padding: 8px 16px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08); color: var(--text2);
+    cursor: pointer; letter-spacing: 0.3px; transition: all 0.15s;
+  }
+  .ctrl-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+  #config-area {
+    display: none;
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 12px;
+    padding: 16px 18px; background: rgba(0,0,0,0.25);
+    text-align: left; margin-top: 8px;
+  }
+  #config-area label {
+    font-size: 11px; color: var(--text3); display: block;
+    margin-bottom: 4px; margin-top: 12px;
+    text-transform: uppercase; letter-spacing: 0.8px; font-weight: 500;
+  }
+  #config-area label:first-child { margin-top: 0; }
+  #config-area input {
+    width: 100%; font-size: 13px; padding: 9px 12px;
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
+    background: rgba(0,0,0,0.2); color: #fff;
+    font-family: var(--sans); transition: border-color 0.15s;
+  }
+  #config-area input::placeholder { color: var(--text3); }
+  #config-area input:focus { outline: none; border-color: var(--accent); }
+  .cfg-row { display: flex; gap: 8px; }
+  .cfg-row > div { flex: 1; }
+  #apply-btn {
+    margin-top: 14px; width: 100%; padding: 11px;
+    border-radius: 8px; border: 1px solid var(--accent2);
+    background: rgba(245,200,66,0.15); color: var(--accent);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    font-family: var(--sans); transition: all 0.15s;
+  }
+  #apply-btn:hover { background: rgba(245,200,66,0.25); }
+  #no-url-notice { display: none; font-size: 12px; color: var(--danger); margin-bottom: 12px; }
+
+  /* ── 출석폼 화면 ── */
+  #form-screen { display: none; width: 100%; max-width: 400px; }
+  .form-card {
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(12px);
+    border-radius: 28px;
+    padding: 40px 32px;
+    border: 1px solid rgba(255,255,255,0.15);
+    position: relative; overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  }
+  .form-card::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+  .form-card h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; color: #fff; }
+  .form-sub { font-size: 13px; color: var(--text2); margin-bottom: 32px; font-weight: 300; }
+  .form-label { font-size: 11px; color: var(--text3); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 500; }
+  #sid-input {
+    width: 100%; padding: 16px; font-size: 28px;
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 12px;
+    margin-bottom: 16px; text-align: center; letter-spacing: 6px;
+    color: #fff; background: rgba(0,0,0,0.2);
+    font-family: var(--mono); transition: border-color 0.15s;
+  }
+  #sid-input::placeholder { color: var(--text3); letter-spacing: 2px; font-size: 18px; }
+  #sid-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(245,200,66,0.15); }
+  #submit-btn {
+    width: 100%; padding: 15px; background: var(--accent);
+    color: #1a1a6e; border: none; border-radius: 12px;
+    font-size: 16px; cursor: pointer; font-weight: 700;
+    font-family: var(--sans); transition: all 0.15s; letter-spacing: 0.3px;
+  }
+  #submit-btn:hover { background: var(--accent2); }
+  #submit-btn:disabled { background: rgba(255,255,255,0.2); color: var(--text3); cursor: default; }
+  #form-msg { margin-top: 14px; font-size: 13px; color: var(--danger); text-align: center; min-height: 18px; }
+
+  /* ── 결과 화면 ── */
+  #result-screen { display: none; width: 100%; max-width: 400px; }
+  .result-card {
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(12px);
+    border-radius: 28px;
+    padding: 52px 32px 40px;
+    border: 1px solid rgba(255,255,255,0.15);
+    text-align: center; position: relative; overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  }
+  .result-card::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+  .result-icon { font-size: 56px; margin-bottom: 20px; }
+  .result-title { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 10px; white-space: pre-line; line-height: 1.35; }
+  .result-sub { font-size: 14px; margin-top: 8px; font-weight: 300; }
+  #back-btn {
+    margin-top: 28px; padding: 11px 28px;
+    border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08); color: var(--text2);
+    font-size: 13px; cursor: pointer; font-family: var(--sans); transition: all 0.15s;
+  }
+  #back-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(0.85)} }
+</style>
+</head>
+<body>
+
+<div id="qr-screen">
+  <div id="main-card">
+    <div id="top-bar">
+      <div id="school-info">
+        <div id="school-name">학교명</div>
+        <div id="class-name">반 정보</div>
+      </div>
+      <div id="time-area">
+        <div id="clock">--:--:--</div>
+        <div id="date-str">--</div>
+      </div>
+    </div>
+    <div id="no-url-notice">설정에서 Apps Script URL을 입력해주세요</div>
+    <div id="qr-wrap">
+      <canvas id="qr-canvas" width="240" height="240"></canvas>
+    </div>
+    <div id="status-bar">
+      <div id="dot"></div>
+      <span id="status-text">QR 활성화됨 · 스캔하여 출석 제출</span>
+    </div>
+    <div id="timer-row">
+      <span id="timer-label">다음 갱신</span>
+      <div id="timer-bar-wrap"><div id="timer-bar" style="width:100%"></div></div>
+      <span id="timer-count">60</span>
+      <span id="timer-unit">초</span>
+    </div>
+    <div id="controls">
+      <button class="ctrl-btn" onclick="toggleConfig()">설정 열기 / 닫기</button>
+      <button class="ctrl-btn" onclick="forceRefresh()">QR 즉시 갱신</button>
+    </div>
+    <div id="config-area">
+      <div class="cfg-row">
+        <div><label>학교명</label><input id="cfg-school" placeholder="예: 대일고등학교"></div>
+        <div><label>반 정보</label><input id="cfg-class" placeholder="예: 2학년 오후 출석"></div>
+      </div>
+      <label>Apps Script 웹앱 URL</label>
+      <input id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec">
+      <label>QR 갱신 주기 (초)</label>
+      <input id="cfg-interval" type="number" value="60" min="10" max="300">
+      <button id="apply-btn" onclick="applyConfig()">적용하기</button>
+    </div>
+  </div>
+</div>
+
+<div id="form-screen">
+  <div class="form-card">
+    <h2>출석 체크</h2>
+    <p class="form-sub">학번을 입력하면 자동으로 처리됩니다</p>
+    <label class="form-label">학번</label>
+    <input type="text" id="sid-input" inputmode="numeric" placeholder="00000">
+    <button id="submit-btn" onclick="submitAttendance()">출석 제출</button>
+    <div id="form-msg"></div>
+  </div>
+</div>
+
+<div id="result-screen">
+  <div class="result-card">
+    <div class="result-icon" id="result-icon"></div>
+    <div class="result-title" id="result-title"></div>
+    <div class="result-sub" id="result-sub"></div>
+    <button id="back-btn" onclick="goBack()">돌아가기</button>
+  </div>
+</div>
+
+<script>
+var APPS_URL = '';
+var INTERVAL = 60;
+var remaining = INTERVAL;
+var currentToken = '';
+var configOpen = false;
+var currentScreen = 'qr';
+
+function showScreen(name) {
+  document.getElementById('qr-screen').style.display = 'none';
+  document.getElementById('form-screen').style.display = 'none';
+  document.getElementById('result-screen').style.display = 'none';
+  document.getElementById(name + '-screen').style.display = 'block';
+  currentScreen = name;
+}
+
+function loadSaved() {
+  var school = localStorage.getItem('att_pm_school') || '';
+  var cls    = localStorage.getItem('att_pm_class')  || '';
+  var url    = localStorage.getItem('att_pm_url')    || '';
+  var iv     = parseInt(localStorage.getItem('att_pm_interval')) || 60;
+  if (school) document.getElementById('school-name').textContent = school;
+  if (cls)    document.getElementById('class-name').textContent  = cls;
+  document.getElementById('cfg-school').value   = school;
+  document.getElementById('cfg-class').value    = cls;
+  document.getElementById('cfg-url').value      = url;
+  document.getElementById('cfg-interval').value = iv;
+  APPS_URL = url;
+  INTERVAL = iv;
+  remaining = iv;
+  document.getElementById('no-url-notice').style.display = url ? 'none' : 'block';
+}
+
+function makeToken() {
+  return Math.floor(Date.now() / 1000).toString(36);
+}
+
+function drawQR() {
+  var pageUrl = 'https://honghyeyeon-daeil.github.io/attendance-pm/';
+  var url = APPS_URL
+    ? pageUrl + '?token=' + currentToken + '&api=' + encodeURIComponent(APPS_URL)
+    : pageUrl + '?token=설정필요';
+  var canvas = document.getElementById('qr-canvas');
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 240, 240);
+  var tmp = document.createElement('div');
+  try {
+    new QRCode(tmp, {
+      text: url, width: 240, height: 240,
+      colorDark: '#000000', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    setTimeout(function() {
+      var el = tmp.querySelector('canvas') || tmp.querySelector('img');
+      if (!el) return;
+      if (el.tagName === 'CANVAS') {
+        ctx.drawImage(el, 0, 0, 240, 240);
+      } else {
+        var i = new Image();
+        i.onload = function() { ctx.drawImage(i, 0, 0, 240, 240); };
+        i.src = el.src;
+      }
+    }, 150);
+  } catch(e) {}
+}
+
+function refresh() {
+  currentToken = makeToken();
+  drawQR();
+  remaining = INTERVAL;
+  document.getElementById('timer-bar').style.width = '100%';
+}
+
+function forceRefresh() { refresh(); }
+
+function toggleConfig() {
+  configOpen = !configOpen;
+  document.getElementById('config-area').style.display = configOpen ? 'block' : 'none';
+}
+
+function applyConfig() {
+  var school = document.getElementById('cfg-school').value.trim() || '학교명';
+  var cls    = document.getElementById('cfg-class').value.trim()  || '반 정보';
+  var url    = document.getElementById('cfg-url').value.trim();
+  var iv     = Math.max(10, Math.min(300, parseInt(document.getElementById('cfg-interval').value) || 60));
+  document.getElementById('school-name').textContent = school;
+  document.getElementById('class-name').textContent  = cls;
+  document.getElementById('no-url-notice').style.display = url ? 'none' : 'block';
+  localStorage.setItem('att_pm_school', school);
+  localStorage.setItem('att_pm_class',  cls);
+  localStorage.setItem('att_pm_url',    url);
+  localStorage.setItem('att_pm_interval', iv);
+  APPS_URL = url;
+  INTERVAL = iv;
+  remaining = iv;
+  refresh();
+  toggleConfig();
+}
+
+function updateClock() {
+  var now = new Date();
+  var h = String(now.getHours()).padStart(2,'0');
+  var m = String(now.getMinutes()).padStart(2,'0');
+  var s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = h + ':' + m + ':' + s;
+  var days = ['일','월','화','수','목','금','토'];
+  document.getElementById('date-str').textContent =
+    now.getFullYear() + '년 ' + (now.getMonth()+1) + '월 ' + now.getDate() + '일 (' + days[now.getDay()] + ')';
+}
+
+function tick() {
+  updateClock();
+  if (currentScreen !== 'qr') return;
+  remaining--;
+  if (remaining <= 0) refresh();
+  var pct = Math.max(0, Math.round((remaining / INTERVAL) * 100));
+  var bar = document.getElementById('timer-bar');
+  bar.style.width = pct + '%';
+  bar.style.background = remaining <= 10 ? '#ff6b6b' : '#f5c842';
+  bar.style.boxShadow = remaining <= 10 ? '0 0 8px #ff6b6b' : '0 0 8px #f5c842';
+  document.getElementById('timer-count').textContent = Math.max(0, remaining);
+}
+
+function showForm(token, apiUrl) {
+  currentToken = token;
+  if (apiUrl) APPS_URL = apiUrl;
+  document.getElementById('sid-input').value = '';
+  document.getElementById('form-msg').textContent = '';
+  document.getElementById('submit-btn').disabled = false;
+  showScreen('form');
+  setTimeout(function() { document.getElementById('sid-input').focus(); }, 100);
+}
+
+function submitAttendance() {
+  var sid = document.getElementById('sid-input').value.trim();
+  if (!sid) { document.getElementById('form-msg').textContent = '학번을 입력해주세요.'; return; }
+  if (!APPS_URL) { document.getElementById('form-msg').textContent = '설정에서 URL을 입력해주세요.'; return; }
+
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('form-msg').textContent = '확인 중...';
+
+  var cbName = 'cb_' + Math.random().toString(36).slice(2);
+  var script = document.createElement('script');
+  var done = false;
+
+  window[cbName] = function(data) {
+    done = true;
+    delete window[cbName];
+    if (document.body.contains(script)) document.body.removeChild(script);
+    handleResult(data);
+  };
+
+  script.onerror = function() {
+    if (done) return;
+    done = true;
+    delete window[cbName];
+    if (document.body.contains(script)) document.body.removeChild(script);
+    document.getElementById('form-msg').textContent = '오류가 발생했습니다. 다시 시도해주세요.';
+    document.getElementById('submit-btn').disabled = false;
+  };
+
+  script.src = APPS_URL
+    + '?callback=' + encodeURIComponent(cbName)
+    + '&t=' + encodeURIComponent(currentToken)
+    + '&sid=' + encodeURIComponent(sid);
+  document.body.appendChild(script);
+}
+
+function handleResult(data) {
+  if (data.status === 'OK') {
+    showResult('✅', data.name + '님\n출석 완료!', '학번 · 이름 · 오후 출석 체크 완료', '#f5c842');
+  } else if (data.status === 'DUPLICATE') {
+    showResult('⚠️', '이미 출석했습니다', data.name + '님은 오늘 이미 체크되었어요', '#b0b8e8');
+  } else if (data.status === 'NOT_FOUND') {
+    document.getElementById('form-msg').textContent = '등록되지 않은 학번입니다. 선생님께 문의하세요.';
+    document.getElementById('submit-btn').disabled = false;
+  } else if (data.status === 'EXPIRED') {
+    showResult('⏱️', 'QR이 만료되었습니다', '교실 화면의 QR을 다시 스캔해주세요', '#ff6b6b');
+  } else {
+    document.getElementById('form-msg').textContent = '오류가 발생했습니다. 다시 시도해주세요.';
+    document.getElementById('submit-btn').disabled = false;
+  }
+}
+
+function showResult(icon, title, sub, color) {
+  document.getElementById('result-icon').textContent = icon;
+  document.getElementById('result-title').textContent = title;
+  document.getElementById('result-sub').textContent = sub;
+  document.getElementById('result-sub').style.color = color;
+  showScreen('result');
+}
+
+function goBack() {
+  document.getElementById('sid-input').value = '';
+  document.getElementById('form-msg').textContent = '';
+  document.getElementById('submit-btn').disabled = false;
+  showScreen('form');
+}
+
+function checkUrlParams() {
+  var params = new URLSearchParams(window.location.search);
+  var token = params.get('token');
+  var api = params.get('api');
+  if (token && token !== '설정필요') {
+    var apiUrl = api ? decodeURIComponent(api) : APPS_URL;
+    history.replaceState(null, '', window.location.pathname);
+    showForm(token, apiUrl);
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && currentScreen === 'form') {
+    submitAttendance();
+  }
+});
+
+loadSaved();
+refresh();
+updateClock();
+setInterval(tick, 1000);
+checkUrlParams();
+</script>
+</body>
+</html>
